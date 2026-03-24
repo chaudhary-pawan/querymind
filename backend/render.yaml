@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: querymind-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false # Set this in the Render dashboard
+      - key: PYTHON_VERSION
+        value: 3.10.0
