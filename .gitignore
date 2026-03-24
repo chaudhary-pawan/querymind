@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Environment variables
+.env
+
+# Database
+# Note: Since the DB is ephemeral, we don't want to push the actual SQLite file.
+backend/sql_app.db
+# Or any other SQLite files
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+frontend/.next/
+frontend/out/
+backend/dist/
+backend/build/
+*.egg-info/
