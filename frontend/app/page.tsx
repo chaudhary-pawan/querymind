@@ -5,6 +5,7 @@ import QueryInput from './components/QueryInput';
 import SQLDisplay from './components/SQLDisplay';
 import ResultsTable from './components/ResultsTable';
 import DBExplorer from './components/DBExplorer';
+import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -111,6 +112,18 @@ export default function Home() {
       <div className="relative max-w-5xl mx-auto px-6 py-12 flex flex-col items-center gap-10">
         {/* Header */}
         <div className="flex flex-col items-center text-center gap-4">
+          <div className="relative group">
+            <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+            <Image 
+              src="/images/querymind.png" 
+              alt="QueryMind Logo" 
+              width={160} 
+              height={160} 
+              style={{ height: 'auto' }}
+              className="relative rounded-3xl shadow-2xl mb-2 grayscale-[20%] group-hover:grayscale-0 transition-all duration-500"
+              priority
+            />
+          </div>
           <h1 className="text-4xl md:text-6xl font-black bg-clip-text text-transparent bg-gradient-to-b from-white to-white/40 tracking-tight">
             Text to SQL <span className="text-blue-500/50 text-2xl font-normal ml-2 tracking-widest italic">PRO</span>
           </h1>
