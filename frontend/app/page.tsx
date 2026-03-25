@@ -15,6 +15,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [explaining, setExplaining] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [resetComplete, setResetComplete] = useState(false);
   const [result, setResult] = useState<{ sql: string | null; results: any[]; error: string | null }>({
     sql: null,
     results: [],
@@ -23,6 +24,12 @@ export default function Home() {
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explainError, setExplainError] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
+ 
+  // Reset DB on Refresh
+  useEffect(() => {
+    fetch(`${API_URL}/reset`, { method: 'POST' })
+      .finally(() => setResetComplete(true));
+  }, []);
 
   // Clear messages after 3 seconds
   useEffect(() => {
@@ -150,7 +157,12 @@ export default function Home() {
 
         {/* Dynamic Content */}
         <div className="w-full max-w-3xl flex flex-col gap-8 min-h-[500px]">
-          {activeTab === 'query' ? (
+          {!resetComplete ? (
+            <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+              <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-4" />
+              <p className="text-white/20 text-xs font-bold uppercase tracking-widest">Initializing Sandbox...</p>
+            </div>
+          ) : activeTab === 'query' ? (
             <div className="flex flex-col gap-8 animate-in slide-in-from-left-4 duration-500">
               <QueryInput 
                 value={question}

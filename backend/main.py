@@ -42,14 +42,16 @@ async def process_query(request: QueryRequest, db: Session = Depends(get_db)):
         if not is_safe_sql(sql):
             raise HTTPException(status_code=400, detail=f"Unsafe or invalid query generated: {sql}")
         
-        # 3. Execute SQL
-        result = db.execute(text(sql))
-        db.commit() # Ensure changes are committed if it's an UPDATE/DELETE
+        # 3. Execute SQL ONLY if it is a SELECT query
+        is_select = sql.strip().lower().startswith("select")
         
         data = []
-        if result.returns_rows:
-            columns = result.keys()
-            data = [dict(zip(columns, row)) for row in result.fetchall()]
+        if is_select:
+            result = db.execute(text(sql))
+            db.commit()
+            if result.returns_rows:
+                columns = result.keys()
+                data = [dict(zip(columns, row)) for row in result.fetchall()]
         
         return {
             "sql": sql,
@@ -107,6 +109,11 @@ async def execute_raw_sql(request: SQLRequest, db: Session = Depends(get_db)):
         db.rollback()
         print(f"Error executing raw SQL: {str(e)}")
         return {"success": False, "error": str(e)}
+
+@app.post("/reset")
+async def reset_database():
+    init_db()
+    return {"success": True}
 
 if __name__ == "__main__":
     import os

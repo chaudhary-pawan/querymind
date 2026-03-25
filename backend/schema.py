@@ -1,11 +1,15 @@
-from db import engine, Base, SessionLocal
+from db import engine, Base, SessionLocal, DB_PATH
 from models import User, Product, Order
 
 def init_db():
-    # Always start fresh (Ephemeral DB)
-    Base.metadata.drop_all(bind=engine)
+    import os
+    # Ensure fresh start by deleting the DB file
+    engine.dispose()
+    if os.path.exists(DB_PATH):
+        try: os.remove(DB_PATH)
+        except: pass
+        
     Base.metadata.create_all(bind=engine)
-    
     db = SessionLocal()
     
     # Create dummy users
