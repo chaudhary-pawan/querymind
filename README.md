@@ -1,4 +1,4 @@
-# QueryMind: Text-to-SQL Pro 🚀
+# QueryMind: Text-to-SQL Pro 
 "Your AI-powered SQL assistant"
 
 A full-stack, AI-powered Database Playground that allows users to query and manage an e-commerce database using natural language. Powered by Gemini, FastAPI, and Next.js.
@@ -14,7 +14,7 @@ A full-stack, AI-powered Database Playground that allows users to query and mana
 - **Pro Actions**: Apply AI-generated `UPDATE`, `DELETE`, and `INSERT` queries directly to the database.
 - **Ephemeral Sandbox**: The database resets to its original seeded state on every restart—perfect for safe experimentation.
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 - **Backend**: FastAPI, SQLAlchemy, SQLite, `google-genai` (SDK)
 - **Frontend**: Next.js 14, Tailwind CSS, Lucide Icons
