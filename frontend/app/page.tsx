@@ -5,25 +5,68 @@ import QueryInput from './components/QueryInput';
 import SQLDisplay from './components/SQLDisplay';
 import ResultsTable from './components/ResultsTable';
 import DBExplorer from './components/DBExplorer';
+import GuardrailsPanel from './components/GuardrailsPanel';
+import ConfirmationModal from './components/ConfirmationModal';
 import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+interface PipelineStep {
+  step: string;
+  status: string;
+  duration_ms: number;
+  detail: string;
+}
+
+interface GuardrailsCheck {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
+interface QueryResult {
+  sql: string | null;
+  results: any[];
+  error: string | null;
+  confidence: number;
+  confidence_label: string;
+  confidence_reasoning: string;
+  potential_issues: string[];
+  guardrails_passed: boolean;
+  guardrails_checks: GuardrailsCheck[];
+  pipeline_steps: PipelineStep[];
+  requires_confirmation: boolean;
+  blocked: boolean;
+  blocked_reason: string;
+}
+
+const EMPTY_RESULT: QueryResult = {
+  sql: null,
+  results: [],
+  error: null,
+  confidence: 0,
+  confidence_label: "MEDIUM",
+  confidence_reasoning: "",
+  potential_issues: [],
+  guardrails_passed: false,
+  guardrails_checks: [],
+  pipeline_steps: [],
+  requires_confirmation: false,
+  blocked: false,
+  blocked_reason: "",
+};
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'query' | 'explorer'>('query');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [explaining, setExplaining] = useState(false);
-  const [applying, setApplying] = useState(false);
   const [resetComplete, setResetComplete] = useState(false);
-  const [result, setResult] = useState<{ sql: string | null; results: any[]; error: string | null }>({
-    sql: null,
-    results: [],
-    error: null,
-  });
+  const [result, setResult] = useState<QueryResult>(EMPTY_RESULT);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [explainError, setExplainError] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
  
   // Reset DB on Refresh
   useEffect(() => {
@@ -45,7 +88,8 @@ export default function Home() {
     setExplanation(null);
     setExplainError(null);
     setLastMessage(null);
-    setResult({ sql: null, results: [], error: null });
+    setResult(EMPTY_RESULT);
+    setShowConfirmModal(false);
 
     try {
       const response = await fetch(`${API_URL}/query`, {
@@ -54,10 +98,18 @@ export default function Home() {
         body: JSON.stringify({ question }),
       });
 
-      const data = await response.json();
+      const data: QueryResult = await response.json();
       setResult(data);
+
+      // Show confirmation modal for low confidence
+      if (data.requires_confirmation && !data.blocked) {
+        setShowConfirmModal(true);
+      }
     } catch (err) {
-      setResult({ sql: null, results: [], error: 'Failed to connect to backend' });
+      setResult({
+        ...EMPTY_RESULT,
+        error: 'Failed to connect to backend',
+      });
     } finally {
       setLoading(false);
     }
@@ -86,30 +138,14 @@ export default function Home() {
     }
   };
 
-  const handleApply = async () => {
-    if (!result.sql) return;
-    setApplying(true);
-    setLastMessage(null);
-    try {
-      const response = await fetch(`${API_URL}/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql: result.sql }),
-      });
-      const data = await response.json();
-      if (data.success) {
-        setLastMessage(data.message || "Applied successfully!");
-        if (data.results) {
-           setResult(prev => ({ ...prev, results: data.results }));
-        }
-      } else {
-        setResult(prev => ({ ...prev, error: data.error }));
-      }
-    } catch (err) {
-      setResult(prev => ({ ...prev, error: "Failed to apply changes" }));
-    } finally {
-      setApplying(false);
-    }
+  const handleConfirmLowConfidence = () => {
+    setShowConfirmModal(false);
+    // Results are already in state, just dismiss the modal
+  };
+
+  const handleCancelLowConfidence = () => {
+    setShowConfirmModal(false);
+    setResult(EMPTY_RESULT);
   };
 
   return (
@@ -135,7 +171,7 @@ export default function Home() {
             Text to SQL <span className="text-blue-500/50 text-2xl font-normal ml-2 tracking-widest italic">PRO</span>
           </h1>
           <p className="text-white/30 md:text-sm max-w-md uppercase font-bold tracking-widest">
-            Query & Manage your database with Gemini
+            Query & Manage your database with Gemini · Guardrails Enabled
           </p>
         </div>
 
@@ -189,9 +225,21 @@ export default function Home() {
                   <SQLDisplay 
                     sql={result.sql} 
                     onExplain={handleExplain} 
-                    explaining={explaining} 
+                    explaining={explaining}
+                    confidence={result.confidence}
+                    confidenceLabel={result.confidence_label}
+                    confidenceReasoning={result.confidence_reasoning}
+                    blocked={result.blocked}
                   />
                   
+                  {/* Guardrails Pipeline Panel */}
+                  <GuardrailsPanel
+                    steps={result.pipeline_steps}
+                    checks={result.guardrails_checks}
+                    blocked={result.blocked}
+                    blockedReason={result.blocked_reason}
+                  />
+
                   {explanation && (
                     <div className="p-6 bg-blue-500/5 border border-blue-500/10 rounded-2xl text-white/70 text-sm leading-relaxed whitespace-pre-wrap animate-in fade-in slide-in-from-left-2 transition-all">
                        <div className="text-xs font-bold text-blue-400/50 uppercase tracking-widest mb-4">Query Explanation</div>
@@ -205,25 +253,45 @@ export default function Home() {
                     </div>
                   )}
 
-                  <div className="flex flex-col gap-4">
-                     <div className="flex items-center justify-between px-2">
-                        <label className="text-xs font-bold text-white/30 uppercase tracking-widest">
-                          Results
-                        </label>
-                        {!result.sql.trim().toLowerCase().startsWith('select') && (
-                          <button 
-                            onClick={handleApply}
-                            disabled={applying}
-                            className="bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/30 text-amber-500 text-[10px] font-bold py-1 px-3 rounded-full transition-all flex items-center gap-2"
-                          >
-                            {applying ? 'Applying...' : 'Apply to Database'}
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                          </button>
-                        )}
-                     </div>
-                    <ResultsTable data={result.results} />
-                  </div>
+                  {/* Results — only show if not blocked */}
+                  {!result.blocked && (
+                    <div className="flex flex-col gap-4">
+                       <div className="flex items-center justify-between px-2">
+                          <label className="text-xs font-bold text-white/30 uppercase tracking-widest">
+                            Results ({result.results.length} rows)
+                          </label>
+                       </div>
+                      <ResultsTable data={result.results} />
+                    </div>
+                  )}
+
+                  {/* Potential Issues */}
+                  {result.potential_issues.length > 0 && !result.blocked && (
+                    <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-xl animate-in fade-in">
+                      <div className="text-[10px] font-bold text-amber-400/50 uppercase tracking-widest mb-2">
+                        Potential Issues
+                      </div>
+                      <ul className="space-y-1">
+                        {result.potential_issues.map((issue, i) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-amber-400/70">
+                            <span className="text-amber-500 mt-0.5">•</span>
+                            {issue}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </>
+              )}
+
+              {/* Guardrails panel even when blocked (no SQL generated) */}
+              {!result.sql && result.pipeline_steps.length > 0 && (
+                <GuardrailsPanel
+                  steps={result.pipeline_steps}
+                  checks={result.guardrails_checks}
+                  blocked={result.blocked}
+                  blockedReason={result.blocked_reason}
+                />
               )}
             </div>
           ) : (
@@ -233,16 +301,29 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="mt-auto py-10 text-white/10 text-[10px] font-mono tracking-widest uppercase">
-          Full Stack Database Playground &bull; Powered by Deepmind Gemini
+          Full Stack Database Playground &bull; Powered by Gemini &bull; Guardrails Enabled
         </footer>
       </div>
+
+      {/* Confirmation Modal for Low Confidence */}
+      <ConfirmationModal
+        isOpen={showConfirmModal}
+        sql={result.sql || ""}
+        confidence={result.confidence}
+        confidenceLabel={result.confidence_label}
+        reasoning={result.confidence_reasoning}
+        potentialIssues={result.potential_issues}
+        onConfirm={handleConfirmLowConfidence}
+        onCancel={handleCancelLowConfidence}
+      />
 
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.1); }
-      `}</style>
+      `}
+      </style>
     </main>
   );
 }
