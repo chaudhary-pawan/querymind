@@ -5,3 +5,6 @@ google-genai
 python-dotenv
 pydantic
 gunicorn
+sqlglot
+guardrails-ai
+structlog
