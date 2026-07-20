@@ -12,13 +12,14 @@ from typing import Optional, List
 import uvicorn
 
 from db import get_db, engine
-from schema import init_db
+from schema import init_db, clear_custom_schema_files
 from llm import explain_sql, get_client, get_model
 from validator import is_safe_sql
 from models import User, Product, Order
 from logging_config import setup_logging, get_logger, new_correlation_id
 from guardrails_pipeline import GuardrailsPipeline
 import token_tracker
+import schema_generator
 
 # Initialize structured logging
 setup_logging()
@@ -141,9 +142,9 @@ async def explain_query(request: SQLRequest):
 
 @app.get("/tables")
 async def get_all_tables(db: Session = Depends(get_db)):
-    """Get all table data for the DB Explorer."""
+    """Get all table data dynamically based on the current schema."""
     try:
-        tables = ["users", "products", "orders"]
+        tables = pipeline.schema_introspector.get_allowed_tables()
         result = {}
         for table in tables:
             rows = db.execute(text(f"SELECT * FROM {table}"))
@@ -215,6 +216,68 @@ async def get_tokens():
 async def reset_tokens():
     """Reset the token usage statistics."""
     return token_tracker.reset_stats()
+
+
+class UploadSchemaRequest(BaseModel):
+    ddl: str
+    density: int = 15
+
+
+@app.post("/upload-schema")
+async def upload_schema(request: UploadSchemaRequest):
+    """Upload a custom database schema DDL script and seed it with LLM synthetic data."""
+    try:
+        # 1. Validate DDL (only CREATE TABLE statements allowed)
+        is_valid, error_msg = schema_generator.validate_ddl(request.ddl)
+        if not is_valid:
+            return {"success": False, "error": error_msg}
+
+        # 2. Generate mock data queries via Groq
+        inserts = schema_generator.generate_synthetic_data(
+            request.ddl, get_client(), get_model(), request.density
+        )
+
+        # 3. Re-initialize database using new DDL and seed values
+        init_db(request.ddl, inserts)
+        pipeline.invalidate_schema_cache()
+        
+        tables = pipeline.schema_introspector.get_allowed_tables()
+        log.info("custom_schema_sandbox_created", tables=list(tables), density=request.density)
+        return {"success": True, "tables": list(tables)}
+    except Exception as e:
+        log.error("upload_schema_error", error=str(e))
+        return {"success": False, "error": str(e)}
+
+
+class GenerateDDLRequest(BaseModel):
+    prompt: str
+
+
+@app.post("/generate-ddl")
+async def generate_ddl(request: GenerateDDLRequest):
+    """Convert a natural language business description into SQL DDL via Llama 3.1."""
+    try:
+        ddl = schema_generator.generate_ddl_from_prompt(
+            request.prompt, get_client(), get_model()
+        )
+        return {"success": True, "ddl": ddl}
+    except Exception as e:
+        log.error("generate_ddl_error", error=str(e))
+        return {"success": False, "error": str(e)}
+
+
+@app.post("/reset-default")
+async def reset_default_db():
+    """Delete custom schema configuration and restore original default schema."""
+    try:
+        clear_custom_schema_files()
+        init_db()
+        pipeline.invalidate_schema_cache()
+        log.info("default_database_restored")
+        return {"success": True}
+    except Exception as e:
+        log.error("reset_default_error", error=str(e))
+        return {"success": False, "error": str(e)}
 
 
 if __name__ == "__main__":

@@ -19,6 +19,12 @@ const DBExplorer: React.FC<DBExplorerProps> = ({ onDataChange }) => {
       const response = await fetch(`${API_URL}/tables`);
       const data = await response.json();
       setTables(data);
+      
+      const tableNames = Object.keys(data);
+      if (tableNames.length > 0 && (!activeTable || !tableNames.includes(activeTable) || activeTable === 'users')) {
+        // Set first table as active if current is invalid/default-fallback
+        setActiveTable(tableNames[0]);
+      }
     } catch (err) {
       console.error("Failed to fetch tables", err);
     } finally {

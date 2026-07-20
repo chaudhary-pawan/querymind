@@ -7,6 +7,7 @@ import ResultsTable from './components/ResultsTable';
 import DBExplorer from './components/DBExplorer';
 import GuardrailsPanel from './components/GuardrailsPanel';
 import ConfirmationModal from './components/ConfirmationModal';
+import SchemaWizard from './components/SchemaWizard';
 import Image from 'next/image';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -67,6 +68,8 @@ export default function Home() {
   const [explainError, setExplainError] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSchemaWizardOpen, setIsSchemaWizardOpen] = useState(false);
+  const [sandboxKey, setSandboxKey] = useState(0);
   const [tokenStats, setTokenStats] = useState<{
     total_prompt_tokens: number;
     total_completion_tokens: number;
@@ -178,6 +181,38 @@ export default function Home() {
     }
   };
 
+  const handleRestoreDefaultDB = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/reset-default`, { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        setLastMessage("Default database restored successfully!");
+        setResult(EMPTY_RESULT);
+        setQuestion('');
+        setExplanation(null);
+        setSandboxKey(prev => prev + 1);
+        
+        // Refresh token stats
+        const tokenRes = await fetch(`${API_URL}/tokens`);
+        const tokenData = await tokenRes.json();
+        setTokenStats(tokenData);
+      }
+    } catch (err) {
+      console.error("Failed to restore default DB:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSchemaWizardSuccess = (tables: string[]) => {
+    setLastMessage(`Custom sandbox database built with ${tables.length} tables!`);
+    setResult(EMPTY_RESULT);
+    setQuestion('');
+    setExplanation(null);
+    setSandboxKey(prev => prev + 1);
+  };
+
   return (
     <main className="min-h-screen bg-[#050505] text-white selection:bg-blue-500/30">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,#1a1a2e_0%,#050505_70%)] opacity-70" />
@@ -219,6 +254,22 @@ export default function Home() {
             >
               DATABASE EXPLORER
             </button>
+        </div>
+
+        {/* Sandbox Actions */}
+        <div className="flex gap-4 flex-wrap justify-center text-xs">
+          <button
+            onClick={() => setIsSchemaWizardOpen(true)}
+            className="px-5 py-2.5 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 hover:border-blue-500/50 text-blue-400 font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+          >
+            <span>⚙️</span> Setup Custom Sandbox (BYOS)
+          </button>
+          <button
+            onClick={handleRestoreDefaultDB}
+            className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 hover:text-white/80 font-bold rounded-xl transition-all cursor-pointer active:scale-95"
+          >
+            <span>🔄</span> Restore Default Schema
+          </button>
         </div>
 
         {/* Dynamic Content */}
@@ -338,7 +389,7 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <DBExplorer onDataChange={() => setLastMessage("Record updated!")} />
+            <DBExplorer key={sandboxKey} onDataChange={() => setLastMessage("Record updated!")} />
           )}
         </div>
 
@@ -358,6 +409,13 @@ export default function Home() {
         potentialIssues={result.potential_issues}
         onConfirm={handleConfirmLowConfidence}
         onCancel={handleCancelLowConfidence}
+      />
+
+      {/* Schema Wizard Modal for BYOS Sandbox */}
+      <SchemaWizard
+        isOpen={isSchemaWizardOpen}
+        onClose={() => setIsSchemaWizardOpen(false)}
+        onSchemaSuccess={handleSchemaWizardSuccess}
       />
 
       <style jsx global>{`
