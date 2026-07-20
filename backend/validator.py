@@ -17,7 +17,7 @@ log = get_logger("sql_validator")
 
 # SQL statement types that are DDL (always blocked)
 DDL_TYPES = (
-    exp.Create, exp.Drop, exp.AlterTable, 
+    exp.Create, exp.Drop, exp.Alter, 
 )
 
 # SQL statement types that are DML writes (blocked in read-only mode)

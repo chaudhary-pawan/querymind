@@ -1,10 +1,11 @@
 """
-Confidence scoring via Gemini self-evaluation.
-Asks Gemini to rate its own SQL generation confidence
+Confidence scoring via Groq self-evaluation.
+Asks Llama 2 to rate its own SQL generation confidence
 using structured JSON output.
 """
 
 import json
+import token_tracker
 from logging_config import get_logger
 
 log = get_logger("confidence_scorer")
@@ -12,7 +13,7 @@ log = get_logger("confidence_scorer")
 
 class ConfidenceScorer:
     """
-    Uses Gemini to self-evaluate the quality of a generated SQL query.
+    Uses Groq to self-evaluate the quality of a generated SQL query.
     Returns a confidence score (0.0-1.0) with reasoning.
     """
 
@@ -20,13 +21,13 @@ class ConfidenceScorer:
     LOW_THRESHOLD = 0.5
     HIGH_THRESHOLD = 0.8
 
-    def __init__(self, gemini_client, model: str = "gemini-2.5-flash-lite"):
-        self.client = gemini_client
+    def __init__(self, groq_client, model: str = "llama2-7b-chat"):
+        self.client = groq_client
         self.model = model
 
     def score(self, question: str, sql: str, schema: str) -> dict:
         """
-        Ask Gemini to evaluate the generated SQL.
+        Ask Groq/Llama 2 to evaluate the generated SQL.
         
         Returns:
             {
@@ -37,7 +38,7 @@ class ConfidenceScorer:
             }
         """
         if not self.client:
-            return self._default_score("Gemini client not available")
+            return self._default_score("Groq client not available")
 
         prompt = f"""You are a SQL quality evaluator. Rate how confident you are that the following SQL query correctly answers the user's question.
 
@@ -48,30 +49,48 @@ User Question: {question}
 
 Generated SQL: {sql}
 
-Evaluate the SQL and respond with ONLY a JSON object (no markdown, no backticks):
+Evaluate the SQL and respond with ONLY a JSON object. Do not output markdown, backticks, or any conversational text.
+Your response MUST be parseable JSON:
 {{
     "confidence": <float between 0.0 and 1.0>,
     "reasoning": "<brief explanation of your rating>",
     "potential_issues": ["<issue1>", "<issue2>"] or []
-}}
+}}"""
 
-Rating guidelines:
-- 0.9-1.0: Perfect match, simple query, no ambiguity
-- 0.7-0.9: Good match, minor ambiguity possible
-- 0.5-0.7: Moderate confidence, question is ambiguous or complex
-- 0.0-0.5: Low confidence, question is unclear or SQL may be wrong"""
-
+        raw = ""
         try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt,
+            actual_model = "llama-3.1-8b-instant" if self.model == "llama2-7b-chat" else self.model
+            response = self.client.chat.completions.create(
+                model=actual_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=256,
+                temperature=0.9,
             )
 
-            raw = response.text.strip()
-            # Clean up markdown formatting if present
-            raw = raw.replace("```json", "").replace("```", "").strip()
+            raw = response.choices[0].message.content.strip()
+            
+            # Track usage
+            usage = getattr(response, "usage", None)
+            if usage:
+                token_tracker.add_tokens(
+                    prompt_tokens=usage.prompt_tokens,
+                    completion_tokens=usage.completion_tokens,
+                    task="Confidence Scorer",
+                    details=f"Q: {question[:50]} | SQL: {sql[:50]}"
+                )
 
-            result = json.loads(raw)
+            # Clean up markdown formatting if present
+            raw_clean = raw.replace("```json", "").replace("```", "").strip()
+
+            # Attempt to locate JSON block if LLM added conversational text
+            start_idx = raw_clean.find("{")
+            end_idx = raw_clean.rfind("}")
+            if start_idx != -1 and end_idx != -1:
+                raw_json = raw_clean[start_idx:end_idx + 1]
+            else:
+                raw_json = raw_clean
+
+            result = json.loads(raw_json)
             confidence = float(result.get("confidence", 0.5))
             confidence = max(0.0, min(1.0, confidence))  # Clamp to [0, 1]
 

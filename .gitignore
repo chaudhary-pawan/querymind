@@ -18,6 +18,10 @@ backend/sql_app.db
 # Or any other SQLite files
 *.db
 
+# Token tracking state
+backend/token_usage.json
+querymind_resume_assessment.md
+
 # OS files
 .DS_Store
 Thumbs.db

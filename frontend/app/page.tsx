@@ -67,11 +67,24 @@ export default function Home() {
   const [explainError, setExplainError] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [tokenStats, setTokenStats] = useState<{
+    total_prompt_tokens: number;
+    total_completion_tokens: number;
+    total_tokens: number;
+    history: any[];
+  }>({
+    total_prompt_tokens: 0,
+    total_completion_tokens: 0,
+    total_tokens: 0,
+    history: [],
+  });
  
-  // Reset DB on Refresh
+  // Reset DB and fetch tokens on Refresh
   useEffect(() => {
-    fetch(`${API_URL}/reset`, { method: 'POST' })
-      .finally(() => setResetComplete(true));
+    Promise.all([
+      fetch(`${API_URL}/reset`, { method: 'POST' }),
+      fetch(`${API_URL}/tokens`).then(res => res.json()).then(data => setTokenStats(data)).catch(err => console.error("Error fetching tokens:", err))
+    ]).finally(() => setResetComplete(true));
   }, []);
 
   // Clear messages after 3 seconds
@@ -98,8 +111,11 @@ export default function Home() {
         body: JSON.stringify({ question }),
       });
 
-      const data: QueryResult = await response.json();
+      const data: any = await response.json();
       setResult(data);
+      if (data.token_usage) {
+        setTokenStats(data.token_usage);
+      }
 
       // Show confirmation modal for low confidence
       if (data.requires_confirmation && !data.blocked) {
@@ -128,6 +144,9 @@ export default function Home() {
       const data = await response.json();
       if (data.explanation) {
         setExplanation(data.explanation);
+        if (data.token_usage) {
+          setTokenStats(data.token_usage);
+        }
       } else {
         setExplainError(data.detail || "Failed to explain query");
       }
@@ -146,6 +165,17 @@ export default function Home() {
   const handleCancelLowConfidence = () => {
     setShowConfirmModal(false);
     setResult(EMPTY_RESULT);
+  };
+
+  const handleResetTokens = async () => {
+    try {
+      const response = await fetch(`${API_URL}/tokens/reset`, { method: 'POST' });
+      const data = await response.json();
+      setTokenStats(data);
+      setLastMessage("Token statistics reset successfully!");
+    } catch (err) {
+      console.error("Failed to reset tokens:", err);
+    }
   };
 
   return (
@@ -171,7 +201,7 @@ export default function Home() {
             Text to SQL <span className="text-blue-500/50 text-2xl font-normal ml-2 tracking-widest italic">PRO</span>
           </h1>
           <p className="text-white/30 md:text-sm max-w-md uppercase font-bold tracking-widest">
-            Query & Manage your database with Gemini · Guardrails Enabled
+            Query & Manage your database with Groq (Llama 2) · Guardrails Enabled
           </p>
         </div>
 
@@ -200,11 +230,24 @@ export default function Home() {
             </div>
           ) : activeTab === 'query' ? (
             <div className="flex flex-col gap-8 animate-in slide-in-from-left-4 duration-500">
+              {/* Token Limit Lock Banner */}
+              {tokenStats.total_tokens >= 10000 && (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 text-sm font-semibold flex items-center gap-3 animate-pulse shadow-lg">
+                  <span className="text-xl">🔒</span>
+                  <div>
+                    <div className="font-bold">Queries Locked</div>
+                    <div className="text-[11px] font-normal text-rose-400/70 mt-0.5">
+                      You have exceeded the 10,000 token Groq consumption limit. Please contact the administrator to reset usage statistics.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <QueryInput 
                 value={question}
                 onChange={setQuestion}
                 onGenerate={handleGenerate}
-                loading={loading}
+                loading={loading || tokenStats.total_tokens >= 10000}
               />
 
               {result.error && (
@@ -301,7 +344,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="mt-auto py-10 text-white/10 text-[10px] font-mono tracking-widest uppercase">
-          Full Stack Database Playground &bull; Powered by Gemini &bull; Guardrails Enabled
+          Full Stack Database Playground &bull; Powered by Groq (Llama 2) &bull; Guardrails Enabled
         </footer>
       </div>
 

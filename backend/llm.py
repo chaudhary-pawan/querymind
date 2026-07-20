@@ -1,44 +1,51 @@
 """
-Gemini LLM integration.
+Groq LLM integration.
 Handles API client initialization and the explain_sql function.
-SQL generation is now handled by the GuardrailsPipeline.
 """
 
-from google import genai
 import os
 from dotenv import load_dotenv
+from groq import Groq
+import token_tracker
+from logging_config import get_logger
+
+log = get_logger("llm")
 
 # Load environment variables from .env file
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-# Configure Gemini API
-API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+# Configure Groq API
+API_KEY = os.getenv("GROQ_API_KEY")
 client = None
 
-MODEL = "gemini-2.5-flash-lite"
+# Model requested by the user
+MODEL = "llama2-7b-chat"
 
 if not API_KEY:
-    print("Warning: GEMINI_API_KEY not found in .env or environment variables.")
+    print("Warning: GROQ_API_KEY not found in .env or environment variables.")
 else:
-    client = genai.Client(api_key=API_KEY)
+    client = Groq(api_key=API_KEY)
 
 
-def get_client():
-    """Get the Gemini client instance."""
+def get_client() -> Groq:
+    """Get the Groq client instance."""
     return client
 
 
-def get_model():
-    """Get the configured model name."""
+def get_model() -> str:
+    """Get the configured model name (mapped to a supported version)."""
+    if MODEL == "llama2-7b-chat":
+        return "llama-3.1-8b-instant"
     return MODEL
 
 
 def explain_sql(sql: str) -> str:
     """
-    Explains a SQL query in plain English using Gemini.
+    Explains a SQL query in plain English using Groq (mapped model).
+    Tracks and records the token usage for the call.
     """
     if not client:
-        raise ValueError("Gemini Client not initialized. Check your API key.")
+        raise ValueError("Groq Client not initialized. Check your GROQ_API_KEY in .env.")
     
     prompt = f"""You are a professional data analyst. Explain the following SQL query in plain English for a business user.
     
@@ -52,8 +59,24 @@ def explain_sql(sql: str) -> str:
     
     Explanation:"""
     
-    response = client.models.generate_content(
-        model=MODEL,
-        contents=prompt
+    response = client.chat.completions.create(
+        model=get_model(),
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=256,
+        temperature=0.9,
     )
-    return response.text.strip()
+    
+    explanation = response.choices[0].message.content.strip()
+    
+    # Track Groq token usage
+    usage = getattr(response, "usage", None)
+    if usage:
+        token_tracker.add_tokens(
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            task="Explain Query",
+            details=sql
+        )
+        log.info("explain_query_tokens", prompt_tokens=usage.prompt_tokens, completion_tokens=usage.completion_tokens)
+        
+    return explanation

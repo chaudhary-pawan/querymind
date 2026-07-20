@@ -18,6 +18,7 @@ from validator import is_safe_sql
 from models import User, Product, Order
 from logging_config import setup_logging, get_logger, new_correlation_id
 from guardrails_pipeline import GuardrailsPipeline
+import token_tracker
 
 # Initialize structured logging
 setup_logging()
@@ -85,6 +86,9 @@ class QueryResponse(BaseModel):
     blocked: bool = False
     blocked_reason: str = ""
 
+    # Token usage
+    token_usage: dict = {}
+
 
 # ── Endpoints ────────────────────────────────────────────
 
@@ -122,11 +126,14 @@ async def process_query(request: QueryRequest, db: Session = Depends(get_db)):
 
 @app.post("/explain")
 async def explain_query(request: SQLRequest):
-    """Explain a SQL query in plain English using Gemini."""
+    """Explain a SQL query in plain English using Groq."""
     try:
         log.info("explain_requested", sql=request.sql[:200])
         explanation = explain_sql(request.sql)
-        return {"explanation": explanation}
+        return {
+            "explanation": explanation,
+            "token_usage": token_tracker.get_stats()
+        }
     except Exception as e:
         log.error("explain_error", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
@@ -196,6 +203,18 @@ async def get_schema():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tokens")
+async def get_tokens():
+    """Get the current token usage stats."""
+    return token_tracker.get_stats()
+
+
+@app.post("/tokens/reset")
+async def reset_tokens():
+    """Reset the token usage statistics."""
+    return token_tracker.reset_stats()
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 fastapi
 uvicorn
 sqlalchemy
-google-genai
+groq
 python-dotenv
 pydantic
 gunicorn
 sqlglot
-guardrails-ai
 structlog
+# guardrails-ai  # Optional: requires Rust toolchain on Windows. Fallback validation is built-in.

@@ -19,6 +19,7 @@ from injection_scanner import InjectionScanner, ScanResult
 from validator import SQLValidator, ValidationResult
 from guardrails_validator import GuardrailsValidator, GuardrailsResult
 from confidence_scorer import ConfidenceScorer
+import token_tracker
 
 log = get_logger("pipeline")
 
@@ -58,6 +59,9 @@ class PipelineResult:
     blocked: bool = False
     blocked_reason: str = ""
 
+    # Token Usage stats
+    token_usage: dict = field(default_factory=dict)
+
     def to_dict(self) -> dict:
         return asdict(self)
 
@@ -67,13 +71,13 @@ class GuardrailsPipeline:
     Orchestrates the full Text-to-SQL with Guardrails pipeline.
     """
 
-    def __init__(self, engine, gemini_client, model: str = "gemini-2.5-flash-lite"):
+    def __init__(self, engine, groq_client, model: str = "llama2-7b-chat"):
         self.schema_introspector = SchemaIntrospector(engine)
         self.injection_scanner = InjectionScanner()
         self.sql_validator = SQLValidator()
         self.guardrails_validator = GuardrailsValidator()
-        self.confidence_scorer = ConfidenceScorer(gemini_client, model)
-        self.gemini_client = gemini_client
+        self.confidence_scorer = ConfidenceScorer(groq_client, model)
+        self.groq_client = groq_client
         self.model = model
 
     def invalidate_schema_cache(self):
@@ -95,6 +99,7 @@ class GuardrailsPipeline:
         log.info("pipeline_start", question=question[:200], correlation_id=correlation_id)
 
         result = PipelineResult()
+        result.token_usage = token_tracker.get_stats()
         steps = []
 
         # ══════════════════════════════════════════
@@ -247,6 +252,7 @@ class GuardrailsPipeline:
         # Final assembly
         # ══════════════════════════════════════════
         result.pipeline_steps = [asdict(s) for s in steps]
+        result.token_usage = token_tracker.get_stats()
 
         total_ms = sum(s.duration_ms for s in steps)
         log.info(
@@ -261,9 +267,9 @@ class GuardrailsPipeline:
         return result
 
     def _generate_sql(self, question: str, schema: str) -> str:
-        """Generate SQL using Gemini with the dynamic schema."""
-        if not self.gemini_client:
-            raise ValueError("Gemini client not initialized. Check your API key.")
+        """Generate SQL using Groq/Llama 2 with the dynamic schema."""
+        if not self.groq_client:
+            raise ValueError("Groq client not initialized. Check your GROQ_API_KEY in .env.")
 
         prompt = f"""You are an expert SQL generator.
 {schema}
@@ -275,16 +281,30 @@ Rules:
 - Prefer optimized queries using JOIN and GROUP BY.
 - Use LIMIT when appropriate.
 - Only generate SELECT queries. Do NOT generate UPDATE, DELETE, INSERT, or any DDL.
-- For string comparisons, use the LIKE operator for case-insensitive matching.
+- For string comparisons and search terms (such as names), always use the LIKE operator with wildcards (e.g., LIKE '%alice%') to support partial matching on full name columns.
 - Use double quotes for column/table names if they are SQL keywords.
 
 Question: {question}
 SQL:"""
 
-        response = self.gemini_client.models.generate_content(
-            model=self.model,
-            contents=prompt,
+        actual_model = "llama-3.1-8b-instant" if self.model == "llama2-7b-chat" else self.model
+        response = self.groq_client.chat.completions.create(
+            model=actual_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=256,
+            temperature=0.9,
         )
-        sql = response.text.strip()
+        sql = response.choices[0].message.content.strip()
         sql = sql.replace("```sql", "").replace("```", "").strip()
+        
+        # Track usage
+        usage = getattr(response, "usage", None)
+        if usage:
+            token_tracker.add_tokens(
+                prompt_tokens=usage.prompt_tokens,
+                completion_tokens=usage.completion_tokens,
+                task="SQL Generation",
+                details=question
+            )
+            
         return sql
