@@ -23,11 +23,20 @@ To prevent rate-limit exhaustion, token stats are protected behind a secure admi
 * **Features**: Live monitor of prompt/completion tokens, transaction history, and one-click consumption resets.
 * **Safety Lock**: If cumulative token consumption exceeds **10,000**, the main query panel is locked to prevent hitting API limits until the administrator resets the statistics.
 
+### ⚙️ Bring Your Own Schema (BYOS) Sandbox
+QueryMind is no longer locked to a fixed schema. Users can define custom SQL schemas using three interactive modes and automatically generate relational mock datasets:
+* **Mode 1: AI Prompt Builder**: Type database requirements in plain English (e.g. *"Gym member management"*), and Llama writes the SQLite DDL layout.
+* **Mode 2: No-Code Visual Builder**: Click to add tables, define columns and datatypes, and set foreign key links interactively without writing SQL.
+* **Mode 3: Raw SQL DDL**: Paste or upload your `.sql` table creation scripts directly.
+* **Configurable Data Seeding**: Groq generates and runs synthetic data queries to populate the new tables with `5`, `15`, or `30` rows of relational records matching key constraints.
+* **Dynamic DB Explorer**: The database browser and query pipeline dynamically adapt to render and run queries against any uploaded schema.
+* **Restore Button**: One-click restoration back to the default e-commerce database layout.
+
 ### 📊 Other Features
 - **Collapsible Pipeline Trace**: View status, checks, and durations for each step of the pipeline.
 - **Interactive Confidence Badge**: Hover over the confidence score to view the model's self-evaluation reasoning.
 - **Low Confidence Confirmation**: Low-confidence queries trigger a warning dialog asking the user for confirmation before executing.
-- **Database Explorer**: View live tables (`users`, `products`, `orders`) in a dedicated management tab.
+- **Database Explorer**: View live tables in a dedicated tab with dynamic tab selection.
 - **Inline Editing**: Click any cell in the Explorer to instantly update records via SQL.
 - **Explain Query**: Get a structured, technical explanation of every generated SQL statement.
 - **Ephemeral Sandbox**: The database resets to its seeded state on every restart—perfect for safe experimentation.
