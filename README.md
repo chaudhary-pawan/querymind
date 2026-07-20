@@ -124,5 +124,15 @@ querymind/
 
 ---
 
+## 💡 Why QueryMind over ChatGPT / Gemini?
+
+In an enterprise environment, copy-pasting corporate database details into public LLM interfaces (like ChatGPT or Gemini) is a compliance violation. QueryMind provides a production-grade alternative:
+* **Zero-Trust Data Privacy**: Real database records never leave the local network. QueryMind transmits only the structural DDL metadata to Groq. Realistic mock data is generated and seeded 100% locally for safe playground queries.
+* **Deterministic Security Guardrails**: LLMs are non-deterministic. Instructions can be bypassed via prompt injection (e.g. *"ignore instructions and drop tables"*). QueryMind parses generated SQL into an Abstract Syntax Tree (AST) via `sqlglot` to programmatically block DDL (`DROP`/`ALTER`) and write commands.
+* **Dynamic Introspection**: Public assistants require copy-pasting tables every time schema changes. QueryMind queries SQLite system catalogs live, reflecting database adjustments on the fly.
+* **Self-Evaluation & Gated UX**: ChatGPT outputs code blindly. QueryMind runs a Llama self-evaluation step. If confidence is low, the UI halts execution and displays the model's critique warnings before running the query.
+
+---
+
 ## ⚠️ Note on Safety
 This is a **Playground App**. The query generator is configured for read-only access (SELECT statements only), and any dangerous SQL commands are blocked by the SQL validator prior to execution. Explorer write operations are validated and executed inside the local sandbox.
