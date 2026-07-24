@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from "react";
 
 interface PipelineStep {
   step: string;
@@ -44,11 +44,11 @@ const STEP_ICONS: Record<string, string> = {
   pipeline: "⚠️",
 };
 
-const STATUS_STYLES: Record<string, { icon: string; color: string }> = {
-  ok: { icon: "✓", color: "text-emerald-400" },
-  blocked: { icon: "✕", color: "text-red-400" },
-  error: { icon: "!", color: "text-amber-400" },
-  skipped: { icon: "—", color: "text-white/30" },
+const STATUS_STYLES: Record<string, { icon: string; color: string; bg: string }> = {
+  ok: { icon: "✓", color: "text-emerald-400", bg: "bg-emerald-500/10" },
+  blocked: { icon: "✕", color: "text-red-400", bg: "bg-red-500/10" },
+  error: { icon: "!", color: "text-amber-400", bg: "bg-amber-500/10" },
+  skipped: { icon: "—", color: "text-white/30", bg: "bg-white/5" },
 };
 
 const GuardrailsPanel: React.FC<GuardrailsPanelProps> = ({
@@ -57,7 +57,15 @@ const GuardrailsPanel: React.FC<GuardrailsPanelProps> = ({
   blocked,
   blockedReason,
 }) => {
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setContentHeight(contentRef.current.scrollHeight);
+    }
+  }, [expanded, steps, checks]);
 
   if (!steps || steps.length === 0) return null;
 
@@ -69,91 +77,129 @@ const GuardrailsPanel: React.FC<GuardrailsPanelProps> = ({
       {/* Header bar */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl border transition-all cursor-pointer group ${
+        className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl border transition-all cursor-pointer group ${
           blocked
-            ? "bg-red-500/10 border-red-500/20 hover:bg-red-500/15"
+            ? "bg-red-500/[0.06] border-red-500/15 hover:bg-red-500/[0.1]"
             : allPassed
-            ? "bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/15"
-            : "bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/15"
+            ? "bg-emerald-500/[0.06] border-emerald-500/15 hover:bg-emerald-500/[0.1]"
+            : "bg-amber-500/[0.06] border-amber-500/15 hover:bg-amber-500/[0.1]"
         }`}
       >
         <div className="flex items-center gap-3">
-          <span className="text-lg">{blocked ? "🚫" : allPassed ? "🛡️" : "⚠️"}</span>
+          <span className="text-lg">
+            {blocked ? "🚫" : allPassed ? "🛡️" : "⚠️"}
+          </span>
           <div className="text-left">
-            <div className={`text-xs font-bold uppercase tracking-widest ${
-              blocked ? "text-red-400" : allPassed ? "text-emerald-400" : "text-amber-400"
-            }`}>
+            <div
+              className={`text-[11px] font-bold uppercase tracking-[0.1em] ${
+                blocked
+                  ? "text-red-400"
+                  : allPassed
+                  ? "text-emerald-400"
+                  : "text-amber-400"
+              }`}
+            >
               {blocked
                 ? "Query Blocked by Guardrails"
                 : allPassed
                 ? "All Guardrails Passed"
                 : "Guardrails Warning"}
             </div>
-            <div className="text-[10px] text-white/30 mt-0.5">
+            <div className="text-[10px] text-white/25 mt-0.5 font-mono">
               {steps.length} steps · {totalMs}ms total
             </div>
           </div>
         </div>
 
         <svg
-          className={`w-4 h-4 text-white/30 transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-white/20 transition-transform duration-300 ${
+            expanded ? "rotate-180" : ""
+          }`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
         </svg>
       </button>
 
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="mt-2 p-4 bg-white/5 border border-white/10 rounded-2xl space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
-          {/* Pipeline Steps */}
-          {steps.map((step, i) => {
-            const statusStyle = STATUS_STYLES[step.status] || STATUS_STYLES.error;
-            const label = STEP_LABELS[step.step] || step.step;
-            const icon = STEP_ICONS[step.step] || "⚙️";
+      {/* Smooth expand/collapse */}
+      <div
+        className="overflow-hidden transition-all duration-350 ease-in-out"
+        style={{
+          maxHeight: expanded ? contentHeight + 20 : 0,
+          opacity: expanded ? 1 : 0,
+        }}
+      >
+        <div ref={contentRef} className="mt-2 p-4 glass-panel-subtle rounded-2xl space-y-1">
+          {/* Pipeline Steps with timeline */}
+          <div className="relative">
+            {steps.map((step, i) => {
+              const statusStyle =
+                STATUS_STYLES[step.status] || STATUS_STYLES.error;
+              const label = STEP_LABELS[step.step] || step.step;
+              const icon = STEP_ICONS[step.step] || "⚙️";
+              const isLast = i === steps.length - 1;
 
-            return (
-              <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-xl hover:bg-white/5 transition-colors">
-                {/* Step number + icon */}
-                <span className="text-base w-6 text-center">{icon}</span>
+              return (
+                <div key={i} className="flex gap-3 relative">
+                  {/* Timeline connector */}
+                  <div className="flex flex-col items-center">
+                    {/* Dot */}
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border ${statusStyle.bg} ${statusStyle.color} border-current/20 z-10 relative`}
+                    >
+                      {statusStyle.icon}
+                    </div>
+                    {/* Line */}
+                    {!isLast && (
+                      <div className="w-px h-full bg-white/[0.06] min-h-[16px]" />
+                    )}
+                  </div>
 
-                {/* Status indicator */}
-                <span className={`font-mono text-sm font-bold w-5 text-center ${statusStyle.color}`}>
-                  {statusStyle.icon}
-                </span>
-
-                {/* Label + detail */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold text-white/70">{label}</div>
-                  <div className="text-[10px] text-white/30 truncate">{step.detail}</div>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0 pb-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{icon}</span>
+                        <span className="text-xs font-semibold text-white/70">
+                          {label}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-white/25 truncate mt-0.5 ml-6">
+                        {step.detail}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-white/15 tabular-nums whitespace-nowrap flex-none mt-0.5">
+                      {step.duration_ms}ms
+                    </span>
+                  </div>
                 </div>
-
-                {/* Duration */}
-                <span className="text-[10px] font-mono text-white/20 tabular-nums whitespace-nowrap">
-                  {step.duration_ms}ms
-                </span>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
 
           {/* Guardrails Checks */}
           {checks.length > 0 && (
             <>
-              <div className="border-t border-white/5 my-2" />
-              <div className="px-3 pt-1 pb-2">
-                <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">
+              <div className="border-t border-white/[0.04] my-3" />
+              <div className="px-1 pt-1 pb-2">
+                <div className="text-[10px] font-bold text-white/25 uppercase tracking-[0.15em] mb-2.5">
                   Validation Checks
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {checks.map((check, i) => (
                     <div
                       key={i}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-semibold border ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold border transition-all ${
                         check.passed
-                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                          : "bg-red-500/10 border-red-500/20 text-red-400"
+                          ? "bg-emerald-500/[0.06] border-emerald-500/15 text-emerald-400"
+                          : "bg-red-500/[0.06] border-red-500/15 text-red-400"
                       }`}
                       title={check.detail}
                     >
@@ -168,13 +214,18 @@ const GuardrailsPanel: React.FC<GuardrailsPanelProps> = ({
 
           {/* Blocked reason */}
           {blocked && blockedReason && (
-            <div className="mx-3 mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs">
-              <span className="font-bold mr-1">Blocked:</span>
-              {blockedReason}
+            <div className="mx-1 mt-2 p-3 bg-red-500/[0.06] border border-red-500/15 rounded-xl text-red-400 text-xs flex items-start gap-2">
+              <svg className="w-4 h-4 flex-none mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <div>
+                <span className="font-bold mr-1">Blocked:</span>
+                {blockedReason}
+              </div>
             </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
