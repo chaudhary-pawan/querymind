@@ -59,7 +59,7 @@ Your response MUST be parseable JSON:
 
         raw = ""
         try:
-            actual_model = "llama-3.1-8b-instant" if self.model == "llama2-7b-chat" else self.model
+            actual_model = "qwen/qwen3.6-27b" if self.model == "llama2-7b-chat" else self.model
             response = self.client.chat.completions.create(
                 model=actual_model,
                 messages=[{"role": "user", "content": prompt}],
