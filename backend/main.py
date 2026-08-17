@@ -100,6 +100,31 @@ def startup_event():
     pipeline.invalidate_schema_cache()
     log.info("server_started", title="Text-to-SQL with Guardrails")
 
+@app.get("/test-groq")
+def test_groq():
+    import os
+    from groq import Groq
+
+    api_key = os.getenv("GROQ_API_KEY")
+
+    if not api_key:
+        return {"error": "GROQ_API_KEY is missing"}
+
+    try:
+        client = Groq(api_key=api_key)
+
+        models = client.models.list()
+
+        return {
+            "success": True,
+            "models": [model.id for model in models.data]
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 @app.post("/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest, db: Session = Depends(get_db)):
