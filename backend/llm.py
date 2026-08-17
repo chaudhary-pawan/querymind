@@ -35,7 +35,7 @@ def get_client() -> Groq:
 def get_model() -> str:
     """Get the configured model name (mapped to a supported version)."""
     if MODEL == "llama2-7b-chat":
-        return "llama-3.1-8b-instant"
+        return "qwen/qwen3.6-27b"
     return MODEL
 
 
