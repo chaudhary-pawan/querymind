@@ -71,7 +71,7 @@ class GuardrailsPipeline:
     Orchestrates the full Text-to-SQL with Guardrails pipeline.
     """
 
-    def __init__(self, engine, groq_client, model: str = "llama2-7b-chat"):
+    def __init__(self, engine, groq_client, model: str = "qwen/qwen3.6-27b"):
         self.schema_introspector = SchemaIntrospector(engine)
         self.injection_scanner = InjectionScanner()
         self.sql_validator = SQLValidator()
@@ -287,12 +287,11 @@ Rules:
 Question: {question}
 SQL:"""
 
-        actual_model = "qwen/qwen3.6-27b" if self.model == "llama2-7b-chat" else self.model
         response = self.groq_client.chat.completions.create(
-            model=actual_model,
+            model=self.model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=256,
-            temperature=0.9,
+            temperature=0.0,
         )
         sql = response.choices[0].message.content.strip()
         sql = sql.replace("```sql", "").replace("```", "").strip()

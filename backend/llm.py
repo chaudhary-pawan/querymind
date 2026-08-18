@@ -18,9 +18,8 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 API_KEY = os.getenv("GROQ_API_KEY")
 client = None
 
-# Model requested by the user
-# Active Groq production model
-MODEL = "llama-3.3-70b-versatile"
+# Active Groq model (see https://console.groq.com/docs/models)
+MODEL = "qwen/qwen3.6-27b"
 
 if not API_KEY:
     print("Warning: GROQ_API_KEY not found in .env or environment variables.")
@@ -34,7 +33,7 @@ def get_client() -> Groq:
 
 
 def get_model() -> str:
-    """Get the configured model name (mapped to a supported version)."""
+    """Get the configured model name."""
     return MODEL
 
 

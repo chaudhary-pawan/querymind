@@ -21,7 +21,7 @@ class ConfidenceScorer:
     LOW_THRESHOLD = 0.5
     HIGH_THRESHOLD = 0.8
 
-    def __init__(self, groq_client, model: str = "llama2-7b-chat"):
+    def __init__(self, groq_client, model: str = "qwen/qwen3.6-27b"):
         self.client = groq_client
         self.model = model
 
@@ -59,9 +59,8 @@ Your response MUST be parseable JSON:
 
         raw = ""
         try:
-            actual_model = "qwen/qwen3.6-27b" if self.model == "llama2-7b-chat" else self.model
             response = self.client.chat.completions.create(
-                model=actual_model,
+                model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=256,
                 temperature=0.9,
