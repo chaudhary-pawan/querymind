@@ -21,7 +21,7 @@ class ConfidenceScorer:
     LOW_THRESHOLD = 0.5
     HIGH_THRESHOLD = 0.8
 
-    def __init__(self, groq_client, model: str = "qwen/qwen3.6-27b"):
+    def __init__(self, groq_client, model: str = "gemini-2.5-flash-lite"):
         self.client = groq_client
         self.model = model
 
@@ -64,6 +64,7 @@ Your response MUST be parseable JSON:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=256,
                 temperature=0.9,
+                extra_body={"reasoning_effort": "none"},
             )
 
             raw = response.choices[0].message.content.strip()

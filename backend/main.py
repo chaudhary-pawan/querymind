@@ -100,23 +100,20 @@ def startup_event():
     pipeline.invalidate_schema_cache()
     log.info("server_started", title="Text-to-SQL with Guardrails")
 
-@app.get("/test-groq")
-def test_groq():
+@app.get("/test-gemini")
+def test_gemini():
     import os
-    from groq import Groq
 
-    api_key = os.getenv("GROQ_API_KEY")
-
-    if not api_key:
-        return {"error": "GROQ_API_KEY is missing"}
+    if not os.getenv("GEMINI_API_KEY"):
+        return {"error": "GEMINI_API_KEY is missing"}
 
     try:
-        client = Groq(api_key=api_key)
-
+        client = get_client()
         models = client.models.list()
 
         return {
             "success": True,
+            "active_model": get_model(),
             "models": [model.id for model in models.data]
         }
 

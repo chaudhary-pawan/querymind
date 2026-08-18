@@ -81,6 +81,7 @@ Rules:
         messages=[{"role": "user", "content": prompt}],
         max_tokens=768,
         temperature=0.7,
+        extra_body={"reasoning_effort": "none"},
     )
 
     raw_output = response.choices[0].message.content.strip()
@@ -135,6 +136,7 @@ Rules:
         messages=[{"role": "user", "content": prompt}],
         max_tokens=384,
         temperature=0.6,
+        extra_body={"reasoning_effort": "none"},
     )
 
     ddl_output = response.choices[0].message.content.strip()
